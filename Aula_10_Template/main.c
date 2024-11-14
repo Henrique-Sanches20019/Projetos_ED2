@@ -168,6 +168,20 @@ void escrever_chave_primaria(char *id_aluno, char *sigla_disc, int offset, FILE 
     fwrite(&offset, sizeof(int), 1, fd);
 }
 
+void ler_campo_var(FILE *fd, char campo[]) { // Lê campos de tamanho variável no arquivo de dados
+    int i = 0;
+    char ch;
+
+    fread(&ch, sizeof(char), 1, fd);
+
+    while(ch != '#') {
+        campo[i] = ch;
+        i++;
+        
+        fread(&ch, sizeof(char), 1, fd);
+    }
+}
+
 int funcao_hash(char *id_aluno, char *sigla_disc) { // Função de hash
     int i, hash = 0;
 
@@ -222,6 +236,7 @@ void inserir_hash(char *id_aluno, char *sigla_disc, int offset) {
 
             if (leitura == '/' || leitura == '#') {
                 escrever_chave_primaria(id_aluno, sigla_disc, offset, fd);
+                printf("Offset: %d\n", offset);
                 fclose(fd);
                 return;
             }
@@ -280,30 +295,21 @@ void remover_hash(struct chave_primaria aluno) {
 
     while (!flagSpaceFound) {
         for (int i = 0; i < 2; i++) {
-            fread(&leitura, sizeof(leitura), 1, fd);
-            fseek(fd, -sizeof(leitura), SEEK_CUR);
+            fread(&id_aluno, sizeof(id_aluno), 1, fd);
+            fread(&sigla_disc, sizeof(sigla_disc), 1, fd);
+            fread(&offset, sizeof(int), 1, fd);
 
-            if (leitura == '/') {
+            if (id_aluno[0] == '/') {
                 printf("Registro não encontrado\n");
                 fclose(fd);
                 return;
             }
-            else {
-                fread(&id_aluno, sizeof(id_aluno), 1, fd);
-                fread(&sigla_disc, sizeof(sigla_disc), 1, fd);
+            else if (strncmp(id_aluno, aluno.id_aluno, 4) == 0 && strncmp(sigla_disc, aluno.sigla_disc, 4) == 0) {
+                fseek(fd, -HASH_SLOT_SIZE, SEEK_CUR);
+                fwrite(&espacoRemovido, HASH_SLOT_SIZE, 1, fd);
 
-                if (strncmp(id_aluno, aluno.id_aluno, 4) == 0 && strncmp(sigla_disc, aluno.sigla_disc, 4) == 0) {
-                    fread(&offset, sizeof(int), 1, fd);
-
-                    fseek(fd, -HASH_SLOT_SIZE, SEEK_CUR);
-                    fwrite(&espacoRemovido, HASH_SLOT_SIZE, 1, fd);
-
-                    fclose(fd);
-                    return;
-                }
-                else {
-                    fseek(fd, sizeof(int), SEEK_CUR);
-                }
+                fclose(fd);
+                return;
             }
         }
 
@@ -323,14 +329,112 @@ void remover_hash(struct chave_primaria aluno) {
     fclose(fd);
 }
 
-void buscar_hash() {
+int buscar_hash(struct chave_primaria aluno) {
+    FILE *fd;
+    int hash, newHash, offset, acessos = 0;
+    int flagSpaceFound = 0;
+    char leitura, espacoRemovido = '#', id_aluno[4], sigla_disc[4];
 
+    if ((fd = fopen("hash_table.bin","rb")) == NULL) {
+        printf("Nao foi possivel abrir o arquivo");
+        return -1;
+    }
+
+    hash = funcao_hash(aluno.id_aluno, aluno.sigla_disc);
+    newHash = hash;
+
+    fseek(fd, hash * (HASH_SLOT_SIZE * 2), SEEK_SET);
+
+    while (!flagSpaceFound) {
+        for (int i = 0; i < 2; i++) {
+            fread(&id_aluno, sizeof(id_aluno), 1, fd);
+            fread(&sigla_disc, sizeof(sigla_disc), 1, fd);
+            fread(&offset, sizeof(int), 1, fd);
+            printf("Offset: %d\n", offset);
+            acessos++;
+
+            if (id_aluno[0] == '/') {
+                fclose(fd);
+                return -1;
+            }  
+            else if (strncmp(id_aluno, aluno.id_aluno, 4) == 0 && strncmp(sigla_disc, aluno.sigla_disc, 4) == 0) {
+                fread(&offset, sizeof(int), 1, fd);
+
+                printf("Registro encontrado, enderço %d, %d acessos\n", newHash, acessos);
+
+                fclose(fd);
+                return offset;
+            }
+        }
+
+        newHash++;
+
+        if (newHash == HASH_TABLE_SIZE) {
+            newHash = 0;
+            fseek(fd, 0, SEEK_SET);
+        }
+
+        if (newHash == hash) {
+            printf("Registro não encontrado\n");
+            flagSpaceFound = 1;
+        }
+    }
+
+    fclose(fd);
+}
+
+void buscar_aluno(struct chave_primaria aluno) {
+    FILE *fd;
+    int offset, tamRegistro;
+    char campo_var[50];
+    struct aluno pesquisa;
+    
+    offset = buscar_hash(aluno);
+
+    if (offset == -1) {
+        printf("Registro não encontrado\n");
+        return;
+    }
+
+    if ((fd = fopen("lista_historicos.bin","rb")) == NULL) {
+        printf("Nao foi possivel abrir o arquivo");
+        return;
+    }
+
+    fseek(fd, offset, SEEK_SET);
+    fread(&tamRegistro, sizeof(int), 1, fd);
+
+    fread(&pesquisa.id_aluno, sizeof(char), 4, fd);
+    printf("ID: %s\n", pesquisa.id_aluno);
+    fseek(fd, sizeof(char), SEEK_CUR);
+
+    fread(&pesquisa.sigla_disc, sizeof(char), 4, fd);
+    printf("Sigla: %s\n", pesquisa.sigla_disc);
+    fseek(fd, sizeof(char), SEEK_CUR);
+
+    ler_campo_var(fd, campo_var);
+    strcpy(pesquisa.nome_aluno, campo_var);
+    printf("Nome: %s\n", pesquisa.nome_aluno);
+
+    ler_campo_var(fd, campo_var);
+    strcpy(pesquisa.nome_disc, campo_var);
+    printf("Disciplina: %s\n", pesquisa.nome_disc);
+
+    fread(&pesquisa.media, sizeof(float), 1, fd);
+    printf("Media: %.2f\n", pesquisa.media);
+    fseek(fd, sizeof(char), SEEK_CUR);
+
+    fread(&pesquisa.freq, sizeof(float), 1, fd);
+    printf("Frequencia: %.2f\n", pesquisa.freq);
+
+    fclose(fd);
+    
 }
 
 int main() {
     struct aluno alunos[100];
     struct chave_primaria chaves_remove[100], chaves_busca[100];
-    int count_insere, count_remove, count_busca, id, i = 0, j = 0;
+    int count_insere, count_remove, count_busca, id;
     char entrada;
 
     ler_alunos(alunos, &count_insere);
@@ -377,6 +481,14 @@ int main() {
                 }
                 break;
             case 'b':
+                id = id_para_buscar();
+
+                if (id < count_busca) {
+                    buscar_aluno(chaves_busca[id]);
+                }
+                else {
+                    printf("Todos os alunos já foram buscados\n");
+                }
                 break;
             case 's':
                 entrada = 's';
