@@ -431,7 +431,7 @@ void buscar_aluno(struct chave_primaria aluno) {
     fread(&pesquisa.freq, sizeof(float), 1, fd);
     printf("Frequencia: %.2f\n", pesquisa.freq); 
     
-    mudei */
+    mudei dnv */
 
     fclose(fd);
     
