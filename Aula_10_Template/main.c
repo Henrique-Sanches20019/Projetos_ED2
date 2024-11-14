@@ -193,15 +193,12 @@ int funcao_hash(char *id_aluno, char *sigla_disc) { // Função de hash
         hash += sigla_disc[i];
     }
 
-    printf("Hash: %d\n", hash);
-    printf("Hash mod 13: %d\n", hash % HASH_TABLE_SIZE);
-
     return hash % HASH_TABLE_SIZE;
 }
 
 void inserir_hash(char *id_aluno, char *sigla_disc, int offset) {
     FILE *fd;
-    int arquivoExiste, hash, newHash;
+    int arquivoExiste, hash, newHash, tentativas = 0;
     int flagSpaceFound = 0;
     char espacoLivre = '/', leitura;
 
@@ -230,19 +227,27 @@ void inserir_hash(char *id_aluno, char *sigla_disc, int offset) {
     fseek(fd, hash * (HASH_SLOT_SIZE * 2), SEEK_SET);
 
     while (!flagSpaceFound) {
+        printf("Endereço %d\n", newHash);
+
         for (int i = 0; i < 2; i++) {
             fread(&leitura, sizeof(leitura), 1, fd);
             fseek(fd, -sizeof(leitura), SEEK_CUR);
 
             if (leitura == '/' || leitura == '#') {
                 escrever_chave_primaria(id_aluno, sigla_disc, offset, fd);
-                printf("Offset: %d\n", offset);
+                printf("Chave inserida com sucesso\n");
                 fclose(fd);
                 return;
             }
             else {
+                if (i == 0 && newHash == hash) 
+                    printf("Colisão\n");
+
                 fseek(fd, HASH_SLOT_SIZE, SEEK_CUR);
             }
+
+            tentativas++;
+            printf("Tentativa %d\n", tentativas);
         }
 
         newHash++;
@@ -350,7 +355,6 @@ int buscar_hash(struct chave_primaria aluno) {
             fread(&id_aluno, sizeof(id_aluno), 1, fd);
             fread(&sigla_disc, sizeof(sigla_disc), 1, fd);
             fread(&offset, sizeof(int), 1, fd);
-            printf("Offset: %d\n", offset);
             acessos++;
 
             if (id_aluno[0] == '/') {
@@ -401,7 +405,7 @@ void buscar_aluno(struct chave_primaria aluno) {
         return;
     }
 
-    fseek(fd, offset, SEEK_SET);
+    /* fseek(fd, offset, SEEK_SET);
     fread(&tamRegistro, sizeof(int), 1, fd);
 
     fread(&pesquisa.id_aluno, sizeof(char), 4, fd);
@@ -425,7 +429,9 @@ void buscar_aluno(struct chave_primaria aluno) {
     fseek(fd, sizeof(char), SEEK_CUR);
 
     fread(&pesquisa.freq, sizeof(float), 1, fd);
-    printf("Frequencia: %.2f\n", pesquisa.freq);
+    printf("Frequencia: %.2f\n", pesquisa.freq); 
+    
+    mudei */
 
     fclose(fd);
     
