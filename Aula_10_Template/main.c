@@ -183,15 +183,13 @@ void ler_campo_var(FILE *fd, char campo[]) { // Lê campos de tamanho variável 
 }
 
 int funcao_hash(char *id_aluno, char *sigla_disc) { // Função de hash
-    int i, hash = 0;
+    int i, hash;
+    char chave[7] = "";
 
-    for (i = 0; i < 4; i++) {
-        hash += id_aluno[i];
-    }
+    strcat(chave, id_aluno);
+    strcat(chave, sigla_disc);
 
-    for (i = 0; i < 4; i++) {
-        hash += sigla_disc[i];
-    }
+    hash = atoi(chave);
 
     return hash % HASH_TABLE_SIZE;
 }
@@ -312,6 +310,7 @@ void remover_hash(struct chave_primaria aluno) {
             else if (strncmp(id_aluno, aluno.id_aluno, 4) == 0 && strncmp(sigla_disc, aluno.sigla_disc, 4) == 0) {
                 fseek(fd, -HASH_SLOT_SIZE, SEEK_CUR);
                 fwrite(&espacoRemovido, HASH_SLOT_SIZE, 1, fd);
+                printf("Registro %s%s removido com sucesso\n", aluno.id_aluno, aluno.sigla_disc);
 
                 fclose(fd);
                 return;
@@ -334,7 +333,7 @@ void remover_hash(struct chave_primaria aluno) {
     fclose(fd);
 }
 
-int buscar_hash(struct chave_primaria aluno) {
+void buscar_hash(struct chave_primaria aluno) {
     FILE *fd;
     int hash, newHash, offset, acessos = 0;
     int flagSpaceFound = 0;
@@ -342,7 +341,7 @@ int buscar_hash(struct chave_primaria aluno) {
 
     if ((fd = fopen("hash_table.bin","rb")) == NULL) {
         printf("Nao foi possivel abrir o arquivo");
-        return -1;
+        return;
     }
 
     hash = funcao_hash(aluno.id_aluno, aluno.sigla_disc);
@@ -359,15 +358,15 @@ int buscar_hash(struct chave_primaria aluno) {
 
             if (id_aluno[0] == '/') {
                 fclose(fd);
-                return -1;
+                printf("Registro não encontrado\n");
+                return;
             }  
             else if (strncmp(id_aluno, aluno.id_aluno, 4) == 0 && strncmp(sigla_disc, aluno.sigla_disc, 4) == 0) {
                 fread(&offset, sizeof(int), 1, fd);
-
-                printf("Registro encontrado, enderço %d, %d acessos\n", newHash, acessos);
+                printf("Registro %s%s encontrado, enderço %d, %d acessos\n", aluno.id_aluno, aluno.sigla_disc, newHash, acessos);
 
                 fclose(fd);
-                return offset;
+                return;
             }
         }
 
@@ -387,7 +386,7 @@ int buscar_hash(struct chave_primaria aluno) {
     fclose(fd);
 }
 
-void buscar_aluno(struct chave_primaria aluno) {
+/* void buscar_aluno(struct chave_primaria aluno) {
     FILE *fd;
     int offset, tamRegistro;
     char campo_var[50];
@@ -405,7 +404,7 @@ void buscar_aluno(struct chave_primaria aluno) {
         return;
     }
 
-    /* fseek(fd, offset, SEEK_SET);
+    fseek(fd, offset, SEEK_SET);
     fread(&tamRegistro, sizeof(int), 1, fd);
 
     fread(&pesquisa.id_aluno, sizeof(char), 4, fd);
@@ -429,11 +428,11 @@ void buscar_aluno(struct chave_primaria aluno) {
     fseek(fd, sizeof(char), SEEK_CUR);
 
     fread(&pesquisa.freq, sizeof(float), 1, fd);
-    printf("Frequencia: %.2f\n", pesquisa.freq); */
+    printf("Frequencia: %.2f\n", pesquisa.freq);
 
     fclose(fd);
     
-}
+} */
 
 int main() {
     struct aluno alunos[100];
@@ -444,11 +443,6 @@ int main() {
     ler_alunos(alunos, &count_insere);
     ler_chaves_primarias(chaves_remove, &count_remove, 'r');
     ler_chaves_primarias(chaves_busca, &count_busca, 'b');
-
-    for (int i = 0; i < count_remove; i++) {
-        printf("ID: %s\n", chaves_remove[i].id_aluno);
-        printf("Sigla: %s\n", chaves_remove[i].sigla_disc);
-    }
 
     entrada = '0';
 
@@ -488,7 +482,7 @@ int main() {
                 id = id_para_buscar();
 
                 if (id < count_busca) {
-                    buscar_aluno(chaves_busca[id]);
+                    buscar_hash(chaves_busca[id]);
                 }
                 else {
                     printf("Todos os alunos já foram buscados\n");
